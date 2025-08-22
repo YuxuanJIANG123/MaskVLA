@@ -1,0 +1,13 @@
+{
+    "adjust_bottle":"Pick up the bottle on the table headup with the correct arm",
+    "blocks_ranking_rgb":"Place the red block, green block, and blue block in the order of red, green, and blue from left to right, placing in a row.",
+    "click_bell":"click the bell's top center on the table",
+    "grab_roller":"use both arms to grab the roller on the table",
+    "hanging_mug":"Use left arm to pick the mug on the table, rotate the mug and put the mug down in the middle of the table, use the right arm to pick the mug and hang it onto the rack.",
+    "move_stapler_pad":"use appropriate arm to move the stapler to a colored mat",
+    "open_laptop":"use one arm to open the laptop",
+    "place_phone_stand":"pick up the phone and put it on the phone stand",
+    "put_object_cabinet":"use arms to grab the bottles and put them into the dustbin to the left of the table",
+    "scan_object":"Use one arm to pick the scanner and use the other arm to pick the object, and use the scanner to scan the object",
+    "stack_bowls_three":"stack the three bowls on top of each other"
+}  

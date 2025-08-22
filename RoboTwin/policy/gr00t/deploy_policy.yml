@@ -1,0 +1,17 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: null
+task_name: null
+task_config: null
+ckpt_setting: null
+seed: null
+instruction_type: unseen
+
+# Add Parameters You Need
+model_path: /data/ckpt/gr00t/libero_test/checkpoint-40000
+data_config: Single_Kinova
+embodiment_tag: new_embodiment
+device: cuda
+denoising_steps: 4
+control_type: qpos
+obs_window_size: 1
+dual_arm_strategy: same

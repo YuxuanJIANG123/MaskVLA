@@ -1,0 +1,39 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: openvla_oft_left
+task_name: null
+task_config: null
+ckpt_setting: null
+seed: null
+instruction_type: unseen
+
+# OpenVLA-OFT Specific Parameters
+# Model Configuration
+pretrained_checkpoint: ""  # Path to OpenVLA-OFT checkpoint (required)
+model_family: "openvla"
+unnorm_key: ""  # Action unnormalization key (required, e.g., "libero_spatial", "aloha")
+
+# Action Head Configuration
+use_l1_regression: true
+use_diffusion: false
+num_diffusion_steps_train: 50
+num_diffusion_steps_inference: 50
+
+# Input Configuration  
+num_images_in_input: 3  # Number of camera views
+use_proprio: true       # Use proprioceptive state
+center_crop: true       # Apply center crop to images
+
+# Model Architecture
+use_film: true         # Use FiLM conditioning
+lora_rank: 32          # LoRA rank for fine-tuning
+
+# Quantization
+load_in_8bit: false
+load_in_4bit: false
+
+# Execution
+num_open_loop_steps: 1  # Number of action steps to execute per inference
+
+# Hardware
+use_relative_actions: false
+chunk_size: 25
