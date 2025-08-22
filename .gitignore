@@ -1,0 +1,13 @@
+/openvla-oft/debug_images
+
+/openvla-oft/openvla_extracted_dinov2_weights
+
+/openvla-oft/wandb
+
+/openvla-oft/experiments/logs
+
+/openvla-oft/runs
+
+/openvla-oft/swanlog
+
+/openvla-oft/Draw_attention_map/robotwin_imageopenvla-oft/Draw_attention_map/attn-heat-map/dinov2/dinov2-ckpt/dinov2_vitl14_pretrain.pth
