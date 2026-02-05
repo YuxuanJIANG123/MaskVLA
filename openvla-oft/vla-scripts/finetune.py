@@ -15,7 +15,8 @@ import sys
 # except ImportError as e:
 #     print(f"[INFO]Fail to import experiments.robot.openvla_utils: {e}")
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ['HF_HUB_CACHE'] = '/data/250010219/yuxuan/.cache/openvla'
 import time
 from collections import deque
 from dataclasses import dataclass

@@ -17,6 +17,7 @@ from typing import Optional, Union
 import draccus
 import numpy as np
 import tqdm
+
 from libero.libero import benchmark
 
 import wandb
@@ -194,8 +195,21 @@ def check_unnorm_key(cfg: GenerateConfig, model) -> None:
 
 def setup_logging(cfg: GenerateConfig):
     """Set up logging to file and optionally to wandb."""
+    # # Create run ID
+    # run_id = f"EVAL-{cfg.task_suite_name}-{cfg.model_family}-{DATE_TIME}"
+    # if cfg.run_id_note is not None:
+    #     run_id += f"--{cfg.run_id_note}"
+    ckpt_name = os.path.basename(str(cfg.pretrained_checkpoint))
+    step_str = "unknown_step"
+    if "chkpt" in ckpt_name:
+        # 假设 ckpt 文件名里有 ...--50000_chkpt
+        import re
+        m = re.search(r'--(\d+)_chkpt', ckpt_name)
+        if m:
+            step_str = m.group(1)
+
     # Create run ID
-    run_id = f"EVAL-{cfg.task_suite_name}-{cfg.model_family}-{DATE_TIME}"
+    run_id = f"EVAL-{cfg.task_suite_name}-{cfg.model_family}-step_{step_str}-{DATE_TIME}"
     if cfg.run_id_note is not None:
         run_id += f"--{cfg.run_id_note}"
 
@@ -431,7 +445,7 @@ def run_task(
 
         # Save replay video
         save_rollout_video(
-            replay_images, total_episodes, success=success, task_description=task_description, log_file=log_file
+            replay_images, total_episodes, success=success, task_description=task_description, pretrained_checkpoint=cfg.pretrained_checkpoint, log_file=log_file
         )
 
         # Log results

@@ -1,6 +1,8 @@
 """Utils for evaluating OpenVLA or fine-tuned OpenVLA policies."""
 
+import base64
 import filecmp
+from io import BytesIO
 import json
 import os
 import shutil
@@ -17,7 +19,7 @@ import torch
 from huggingface_hub import HfApi, hf_hub_download
 from PIL import Image
 from transformers import AutoConfig, AutoImageProcessor, AutoModelForVision2Seq, AutoProcessor
-
+import cv2
 # Apply JSON numpy patch for serialization
 json_numpy.patch()
 
@@ -323,8 +325,8 @@ def _apply_film_to_vla(vla: torch.nn.Module, cfg: Any) -> torch.nn.Module:
 
     # Apply LoRA configuration
     lora_config = LoraConfig(
-        r=cfg.lora_rank,
-        lora_alpha=min(cfg.lora_rank, 16),
+        r=32,
+        lora_alpha=16,
         lora_dropout=0.0,
         target_modules="all-linear",
         init_lora_weights="gaussian",
@@ -417,7 +419,6 @@ def get_proprio_projector(cfg: Any, llm_dim: int, proprio_dim: int) -> ProprioPr
             "moojink/openvla-7b-oft-finetuned-libero-object": "proprio_projector--150000_checkpoint.pt",
             "moojink/openvla-7b-oft-finetuned-libero-goal": "proprio_projector--50000_checkpoint.pt",
             "moojink/openvla-7b-oft-finetuned-libero-10": "proprio_projector--150000_checkpoint.pt",
-            "moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10": "proprio_projector--300000_checkpoint.pt",
         }
         if cfg.pretrained_checkpoint not in model_path_to_proprio_projector_name.keys():
             raise ValueError("Unsupported HF Hub pretrained checkpoint found!")
@@ -482,10 +483,8 @@ def get_action_head(cfg: Any, llm_dim: int) -> Union[L1RegressionActionHead, Dif
         action_head = L1RegressionActionHead(input_dim=llm_dim, hidden_dim=llm_dim, action_dim=ACTION_DIM)
     elif cfg.use_diffusion:
         action_head = DiffusionActionHead(
-            input_dim=llm_dim, hidden_dim=llm_dim, action_dim=ACTION_DIM, num_diffusion_steps_train=cfg.num_diffusion_steps_train
+            input_dim=llm_dim, hidden_dim=llm_dim, action_dim=ACTION_DIM, num_diffusion_steps=cfg.num_diffusion_steps
         )
-        # Set number of diffusion steps for inference
-        action_head.noise_scheduler.set_timesteps(cfg.num_diffusion_steps_inference)
     else:
         raise ValueError("Either use_l1_regression or use_diffusion must be True")
 
@@ -499,7 +498,6 @@ def get_action_head(cfg: Any, llm_dim: int) -> Union[L1RegressionActionHead, Dif
             "moojink/openvla-7b-oft-finetuned-libero-object": "action_head--150000_checkpoint.pt",
             "moojink/openvla-7b-oft-finetuned-libero-goal": "action_head--50000_checkpoint.pt",
             "moojink/openvla-7b-oft-finetuned-libero-10": "action_head--150000_checkpoint.pt",
-            "moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10": "action_head--300000_checkpoint.pt",
         }
         if cfg.pretrained_checkpoint not in model_path_to_action_head_name.keys():
             raise ValueError("Unsupported HF Hub pretrained checkpoint found!")
@@ -678,7 +676,6 @@ def normalize_proprio(proprio: np.ndarray, norm_stats: Dict[str, Any]) -> np.nda
 
     return normalized_proprio
 
-
 def prepare_images_for_vla(images: List[np.ndarray], cfg: Any) -> List[Image.Image]:
     """
     Prepare images for VLA input by resizing and cropping as needed.
@@ -692,7 +689,7 @@ def prepare_images_for_vla(images: List[np.ndarray], cfg: Any) -> List[Image.Ima
     """
     processed_images = []
 
-    for image in images:
+    for idx, image in enumerate(images):
         # Validate format
         check_image_format(image)
 
@@ -700,10 +697,25 @@ def prepare_images_for_vla(images: List[np.ndarray], cfg: Any) -> List[Image.Ima
         if image.shape != (OPENVLA_IMAGE_SIZE, OPENVLA_IMAGE_SIZE, 3):
             image = resize_image_for_policy(image, OPENVLA_IMAGE_SIZE)
 
-        # Convert to PIL image
-        pil_image = Image.fromarray(image).convert("RGB")
+        # Convert to PIL Image (BGR -> RGB)
+        image_rgb = image[..., ::-1]
+        pil_image = Image.fromarray(image_rgb).convert("RGB")
 
-        # Apply center crop if configured
+        # # ✅ 只保存 cam2（假设它是第一张图）
+        # if idx == 0:
+        #     save_dir = "/home/jyx/openvla-oft/debug_images"
+        #     os.makedirs(save_dir, exist_ok=True)
+        #     save_path = os.path.join(save_dir, "cam2_processed.png")
+        #     pil_image.save(save_path)
+        #     print(f"[DEBUG] Saved cam2 processed image to: {save_path}, shape: {pil_image.size}")
+        # # ✅ 只保存 cam3（假设它是第一张图）
+        # if idx == 1:
+        #     save_dir = "/home/jyx/openvla-oft/debug_images"
+        #     os.makedirs(save_dir, exist_ok=True)
+        #     save_path = os.path.join(save_dir, "cam3_processed.png")
+        #     pil_image.save(save_path)
+        #     print(f"[DEBUG] Saved cam3 processed image to: {save_path}, shape: {pil_image.size}")
+
         if cfg.center_crop:
             pil_image = center_crop_image(pil_image)
 
@@ -711,6 +723,118 @@ def prepare_images_for_vla(images: List[np.ndarray], cfg: Any) -> List[Image.Ima
 
     return processed_images
 
+# def prepare_images_for_vla(images: List[np.ndarray], cfg: Any) -> List[Image.Image]:
+#     """
+#     Prepare images for VLA input by resizing and cropping as needed.
+
+#     Args:
+#         images: List of input images as numpy arrays
+#         cfg: Configuration object with parameters
+
+#     Returns:
+#         List[Image.Image]: Processed images ready for the model
+#     """
+#     processed_images = []
+
+#     for image in images:
+#         # Validate format
+#         check_image_format(image)
+
+#         # Resize if needed
+#         if image.shape != (OPENVLA_IMAGE_SIZE, OPENVLA_IMAGE_SIZE, 3):
+#             image = resize_image_for_policy(image, OPENVLA_IMAGE_SIZE)
+#             # print(f"Resized image to {image.shape}")#(224, 224, 3)            
+#             # Image.fromarray(image).save("/home/jyx/openvla-oft/debug_images/resized_image.png")
+#         # Convert to PIL image
+#         image_rgb = image[..., ::-1]  # BGR -> RGB
+#         pil_image = Image.fromarray(image_rgb).convert("RGB")
+#         pil_image.save("/home/jyx/openvla-oft/debug_images/processed_image.png")
+#         print(f"Saved Processed image shape: {pil_image.size}")
+#         # Apply center crop if configured
+#         if cfg.center_crop:
+#             pil_image = center_crop_image(pil_image)
+
+#         processed_images.append(pil_image)
+
+
+    return processed_images
+
+def decode_base64_image(base64_str):
+    img_bytes = base64.b64decode(base64_str)
+    img_array = np.frombuffer(img_bytes, dtype=np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)  # BGR
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 转为 RGB numpy array
+    
+def restore_and_save_all(pixel_values, save_dir="/home/jyx/openvla-oft/debug_images"):
+    import os
+    os.makedirs(save_dir, exist_ok=True)
+
+    if pixel_values.dim() == 4:
+        pixel_values = pixel_values[0]  # (C, H, W)
+
+    num_imgs = pixel_values.shape[0] // 3
+    for i in range(num_imgs):
+        img_channels = pixel_values[i*3:(i+1)*3, :, :]
+        if img_channels.dtype == torch.bfloat16:
+            img_channels = img_channels.to(torch.float32)
+
+        img = img_channels * 0.5 + 0.5
+        img_np = img.permute(1, 2, 0).cpu().numpy()
+        img_np = np.clip(img_np, 0, 1)
+        img_np = (img_np * 255).astype(np.uint8)
+        img_bgr = img_np[..., ::-1]
+
+        save_path = os.path.join(save_dir, f"restored_{i}.png")
+        cv2.imwrite(save_path, img_bgr)
+        print(f"保存第{i}张图像到: {save_path}")
+
+def get_process_output(
+    cfg: Any,
+    vla: torch.nn.Module,
+    processor: Any,
+    obs: Dict[str, Any],
+    task_label: str,
+) -> List[np.ndarray]:
+
+    # with torch.inference_mode():##修改以支持反向传播，绘制热图
+    with torch.enable_grad():
+        # --- 1. 解码图像（以客户端格式为例） ---
+        # 只取当前时刻的图像（t时刻）
+        images = obs.get("images", {})
+        cam2 = decode_base64_image(images.get("front_t"))
+        cam1 = decode_base64_image(images.get("right_t"))
+        cam3 = decode_base64_image(images.get("left_t"))
+
+        # 准备图像列表，按模型期望顺序
+        all_images = [cam2]
+        if cfg.num_images_in_input > 1:
+            # 这里按名字放入wrist相机图像
+            all_images.extend([cam1, cam3])
+
+
+        # Process images
+        all_images = prepare_images_for_vla(all_images, cfg)
+
+
+        # Extract primary image and additional images
+        primary_image = all_images.pop(0)
+
+        # Build VLA prompt
+        prompt = f"In: What action should the robot take to {task_label.lower()}?\nOut:"
+
+        # Process primary image，所有bfloat16临时改成32，为了反向传播！！！以下同理
+        inputs = processor(prompt, primary_image).to(DEVICE, dtype=torch.bfloat16)
+        
+        if all_images:
+            all_wrist_inputs = [
+                processor(prompt, image_wrist).to(DEVICE, dtype=torch.bfloat16) for image_wrist in all_images
+            ]
+            # Concatenate all images
+            primary_pixel_values = inputs["pixel_values"]
+            all_wrist_pixel_values = [wrist_inputs["pixel_values"] for wrist_inputs in all_wrist_inputs]
+            inputs["pixel_values"] = torch.cat([primary_pixel_values] + all_wrist_pixel_values, dim=1)
+        
+        return inputs
 
 def get_vla_action(
     cfg: Any,
@@ -722,6 +846,7 @@ def get_vla_action(
     proprio_projector: Optional[torch.nn.Module] = None,
     noisy_action_projector: Optional[torch.nn.Module] = None,
     use_film: bool = False,
+    return_tensor: bool = False,   # 新增参数
 ) -> List[np.ndarray]:
     """
     Generate action predictions with the VLA policy.
@@ -740,15 +865,47 @@ def get_vla_action(
     Returns:
         List[np.ndarray]: Predicted actions
     """
-    with torch.inference_mode():
+    # with torch.inference_mode():##修改以支持反向传播，绘制热图
+    with torch.enable_grad():
+        # --- 1. 解码图像（以客户端格式为例） ---
+        # 只取当前时刻的图像（t时刻）
+        images = obs.get("images", {})
+        cam2 = decode_base64_image(images.get("front_t"))
+        cam1 = decode_base64_image(images.get("right_t"))
+        cam3 = decode_base64_image(images.get("left_t"))
+        # -----------------------debug begin--------------------------------------
+        # print(f"Original cam2 shape: {cam2.shape}, cam1 shape: {cam1.shape}, cam3 shape: {cam3.shape}")
+        # #cam2 shape: (480, 640, 3), cam1 shape: (480, 640, 3), cam3 shape: (480, 640, 3)
+        # save_dir = "/home/jyx/openvla-oft/debug_images"
+        # os.makedirs(save_dir, exist_ok=True)  # 自动创建目录（如果不存在）
 
-        # Collect all input images
-        all_images = [obs["full_image"]]
+        # save_path_1 = os.path.join(save_dir, "cam2_origin_1.png")
+        # save_path_2 = os.path.join(save_dir, "cam2_origin_convertRGB.png")
+
+        # if isinstance(cam2, np.ndarray):
+        #     img = Image.fromarray(cam2)
+        #     img.save(save_path_1)
+        #     img = Image.fromarray(cam2).convert("RGB")
+        #     img.save(save_path_2)
+        # else:
+        #     print("Unsupported image type")
+
+        # print(f"Image saved to {save_path_1} and {save_path_2}")
+        # -----------------------debug over--------------------------------------
+        # 准备图像列表，按模型期望顺序
+        all_images = [cam2]
         if cfg.num_images_in_input > 1:
-            all_images.extend([obs[k] for k in obs.keys() if "wrist" in k])
+            # 这里按名字放入wrist相机图像
+            all_images.extend([cam1, cam3])
+
+        # # Collect all input images
+        # all_images = [obs["cam_high"]]
+        # if cfg.num_images_in_input > 1:
+        #     all_images.extend([obs[k] for k in obs.keys() if "wrist" in k])
 
         # Process images
         all_images = prepare_images_for_vla(all_images, cfg)
+
 
         # Extract primary image and additional images
         primary_image = all_images.pop(0)
@@ -756,10 +913,17 @@ def get_vla_action(
         # Build VLA prompt
         prompt = f"In: What action should the robot take to {task_label.lower()}?\nOut:"
 
-        # Process primary image
+        # Process primary image，所有bfloat16临时改成32，为了反向传播！！！以下同理
         inputs = processor(prompt, primary_image).to(DEVICE, dtype=torch.bfloat16)
 
         # Process additional wrist images if any
+        '''
+        把所有图像的通道维度dim=1 是通道维度拼接起来。
+
+        如果主摄图通道是3(RGB) 三张图拼接后就是9通道3x3了。
+
+        这种“拼接”方式不是横向拼接图像，而是多通道拼接成一个张量输入模型。
+        '''
         if all_images:
             all_wrist_inputs = [
                 processor(prompt, image_wrist).to(DEVICE, dtype=torch.bfloat16) for image_wrist in all_images
@@ -768,22 +932,36 @@ def get_vla_action(
             primary_pixel_values = inputs["pixel_values"]
             all_wrist_pixel_values = [wrist_inputs["pixel_values"] for wrist_inputs in all_wrist_inputs]
             inputs["pixel_values"] = torch.cat([primary_pixel_values] + all_wrist_pixel_values, dim=1)
-
+        # restore_and_save_all(inputs["pixel_values"])
         # Process proprioception data if used
         proprio = None
+        # if cfg.use_proprio:
+        #     proprio = obs["state"]
+        #     proprio_norm_stats = vla.norm_stats[cfg.unnorm_key]["proprio"]
+        #     obs["state"] = normalize_proprio(proprio, proprio_norm_stats)
+        #     proprio = obs["state"]
+ 
+        # --- 4. 处理关节状态 ---
         if cfg.use_proprio:
-            proprio = obs["state"]
+            # 从客户端obs中取qpos作为state
+            proprio = obs.get("qpos", None)
+            if proprio is None:
+                raise ValueError("Missing 'qpos' in observation for proprioception")
+
             proprio_norm_stats = vla.norm_stats[cfg.unnorm_key]["proprio"]
             obs["state"] = normalize_proprio(proprio, proprio_norm_stats)
             proprio = obs["state"]
-
+        else:
+            proprio = None
         # Generate action
         if action_head is None:
             # Standard VLA output (single-image inputs, discrete actions)
-            action, _ = vla.predict_action(**inputs, unnorm_key=cfg.unnorm_key, do_sample=False)
+            action, actions_hidden_states = vla.predict_action(**inputs,
+                                            unnorm_key=cfg.unnorm_key,
+                                            do_sample=False)
         else:
             # Custom action head for continuous actions
-            action, _ = vla.predict_action(
+            action, last_hidden_states = vla.predict_action(
                 **inputs,
                 unnorm_key=cfg.unnorm_key,
                 do_sample=False,
@@ -793,9 +971,22 @@ def get_vla_action(
                 action_head=action_head,
                 use_film=use_film,
             )
+        # print(f"action hidden states shape: {actions_hidden_states.shape}")
+        # print(f"action hidden states: {actions_hidden_states}")
+    # Extract subset of actions for open loop steps
+    return [action[i] for i in range(min(len(action), cfg.num_open_loop_steps))]
+    
+    # if return_tensor:
+    #     action = action[0]  # 取第一步动作
+    #     if not isinstance(action, torch.Tensor):
+    #         action = torch.tensor(action, dtype=torch.float32, device='cuda', requires_grad=True)
+    #     elif not action.requires_grad:
+    #         action.requires_grad_()
+    #     return action, actions_hidden_states
 
-    # Return action chunk as list of actions
-    return [action[i] for i in range(len(action))]
+    # else:
+    #     # 转成numpy列表返回（原有行为）
+    #      return [action[i].detach().cpu().numpy() for i in range(min(len(action), cfg.num_open_loop_steps))]
 
 
 def get_action_from_server(
