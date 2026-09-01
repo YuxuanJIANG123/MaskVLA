@@ -1,6 +1,18 @@
 #!/bin/bash
+# 添加信号处理函数
+handle_term() {
+    echo "收到SIGTERM信号,正在终止进程..."
+    if [ -n "$python_pid" ]; then
+        kill -TERM "$python_pid" 2>/dev/null
+        wait "$python_pid" 2>/dev/null
+    fi
+    exit 143 # 128 + 15 (SIGTERM)
+}
 
-policy_name=maskvla_policy
+# 注册SIGTERM处理函数
+trap 'handle_term' SIGTERM
+
+policy_name=maskvla_left_policy
 task_name=${1}
 task_config=${2}
 ckpt_setting=${3}
@@ -16,7 +28,10 @@ use_l1_regression=${10:-true}   # Use L1 regression action head
 center_crop=${11:-true}         # Apply center crop
 use_film=${12:-false}           # Use FiLM conditioning
 
+checkpoint_name=${13} # hjy Checkpoint name for saving
+
 export CUDA_VISIBLE_DEVICES=${gpu_id}
+
 echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
 echo -e "\033[33mMaskVLA checkpoint: ${pretrained_checkpoint}\033[0m"
 echo -e "\033[33mUnnorm key: ${unnorm_key}\033[0m"
@@ -38,3 +53,7 @@ python script/eval_policy.py --config policy/$policy_name/deploy_policy.yml \
     --use_l1_regression ${use_l1_regression} \
     --center_crop ${center_crop} \
     --use_film ${use_film}
+    # --checkpoint_name ${checkpoint_name} # hjy
+#jyx
+python_pid=$!  # 保存Python进程的PID
+wait "$python_pid"  # 等待进程结束

@@ -1,13 +1,17 @@
-/openvla-oft/debug_images
+/MaskVLA/debug_images
 
-/openvla-oft/openvla_extracted_dinov2_weights
+/MaskVLA/openvla_extracted_dinov2_weights
 
-/openvla-oft/wandb
+/MaskVLA/wandb
 
-/openvla-oft/experiments/logs
+/MaskVLA/experiments/logs
 
-/openvla-oft/runs
+/MaskVLA/runs
 
-/openvla-oft/swanlog
+/MaskVLA/swanlog
 
-/openvla-oft/Draw_attention_map/robotwin_imageopenvla-oft/Draw_attention_map/attn-heat-map/dinov2/dinov2-ckpt/dinov2_vitl14_pretrain.pth
+/MaskVLA/Draw_attention_map/robotwin_image
+/MaskVLA/Draw_attention_map/attn-heat-map/dinov2/dinov2-ckpt/dinov2_vitl14_pretrain.pth
+
+__pycache__/
+*.py[cod]

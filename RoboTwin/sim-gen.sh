@@ -1,3 +1,9 @@
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # bash collect_data.sh adjust_bottle demo_clean 0
 # bash collect_data.sh click_bell demo_clean 0
 # bash collect_data.sh grab_roller demo_clean 0

@@ -24,7 +24,7 @@ use_proprio: true       # Use proprioceptive state
 center_crop: true       # Apply center crop to images
 
 # Model Architecture
-use_film: false         # Use FiLM conditioning
+use_film: true         # Use FiLM conditioning
 lora_rank: 32          # LoRA rank for fine-tuning
 
 # Quantization
@@ -36,3 +36,4 @@ num_open_loop_steps: 1  # Number of action steps to execute per inference
 
 # Hardware
 use_relative_actions: false
+chunk_size: 25
